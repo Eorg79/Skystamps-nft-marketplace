@@ -27,9 +27,9 @@ contract Factory {
        NFTCollectionImplementation = address(new NFTCollection());
     }
 
-    function createCollection(string memory _name, string memory _symbol) external returns (address) {
+    function createCollection(string memory _name, string memory _symbol, address payable _minter) external returns (address) {
         address clone = Clones.clone(NFTCollectionImplementation);
-        NFTCollection(clone).initialize(_name, _symbol);
+        NFTCollection(clone).initialize(_name, _symbol, _minter);
         NFTCollections[clone]= NFTCollectionClone(_name, _symbol, msg.sender);
         emit CollectionCreated(msg.sender, _name, _symbol, clone, block.timestamp);
         return clone;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.14;
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -31,7 +32,7 @@ contract NFTCollection is ERC721URIStorage, Initializable, EIP712, AccessControl
 
     constructor () ERC721("name", "symbol") EIP712("Voucher", "1") {}
 
-    function initialize(string memory _name, string memory _symbol) public initializer {
+    function initialize(string memory _name, string memory _symbol, address payable minter) public initializer {
         collectionName = _name;
         collectionSymbol = _symbol;
          _setupRole(MINTER_ROLE, minter);
@@ -43,20 +44,20 @@ contract NFTCollection is ERC721URIStorage, Initializable, EIP712, AccessControl
       _tokenVoucher.collectionAddress,
       _tokenVoucher.tokenId,
       _tokenVoucher.price,
-      keccak256(bytes(_tokenVoucher.tokenUri))
+      keccak256(bytes(_tokenVoucher.tokenURI))
     )));
   }
 
-    function redeem(address _redeemer, TokenVoucher memory _tokenVoucher) external payable {
-        address signer = _verify(_tokenVoucher);
+   function redeem(address _redeemer, TokenVoucher memory _tokenVoucher, bytes memory _signature) external payable {
+        address signer = _verify(_tokenVoucher, _signature);
         require(hasRole(MINTER_ROLE, signer), "Invalid signature or unauthorized");
         require(msg.value >= _tokenVoucher.price, "Have to send an amount equal to price");
 
         _safeMint(signer, _tokenVoucher.tokenId);
         _setTokenURI(_tokenVoucher.tokenId, _tokenVoucher.tokenURI);
-        _transfer(signer, redeemer, _tokenVoucher.tokenId);
+        _transfer(signer, _redeemer, _tokenVoucher.tokenId);
         balance[signer] += msg.value;
-        emit TokenMinted(_tokenVoucher.tokenId, redeemer, _tokenVoucher.tokenURI);    
+        emit TokenMinted(_tokenVoucher.tokenId, _redeemer, _tokenVoucher.tokenURI);    
     }
 
     function _verify(TokenVoucher memory _tokenVoucher, bytes memory _signature) internal view returns (address) {
@@ -65,18 +66,22 @@ contract NFTCollection is ERC721URIStorage, Initializable, EIP712, AccessControl
     }
 
     function withdraw() public {
-    require(hasRole(MINTER_ROLE, msg.sender), "Only authorized minters can withdraw");
+        require(hasRole(MINTER_ROLE, msg.sender), "Only authorized minters can withdraw");
 
-    address payable receiver = payable(msg.sender);
+        address payable receiver = payable(msg.sender);
 
-    uint amount = balance[receiver];
-    // zero account before transfer to prevent re-entrancy attack
-    balance[receiver] = 0;
-    receiver.transfer(amount);
-  }
+        uint amount = balance[receiver];
+        // zero account before transfer to prevent re-entrancy attack
+        balance[receiver] = 0;
+        receiver.transfer(amount);
+    }
 
   function getBalance() public view returns (uint256) {
-    return balance[msg.sender];
-  }
+        return balance[msg.sender];
+    }
+
+   function supportsInterface(bytes4 _interfaceId) public view virtual override (AccessControl, ERC721) returns (bool) {
+        return ERC721.supportsInterface(_interfaceId) || AccessControl.supportsInterface(_interfaceId);
+    }  
 
 }
